@@ -25,6 +25,7 @@ from torch import Tensor
 from torch_geometric.data import Data
 
 from models.defense.base import BaseDefense
+from datasets.datasets import dgl_to_tg
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +125,7 @@ class _GNNFingersGCN(nn.Module):
 class GNNFingers(BaseDefense):
     """Implementation of the GNNFingers fingerprinting defense."""
 
-    supported_api_types = {"pyg"}
+    supported_api_types = {"pyg", "dgl"}
 
     def __init__(
         self,
@@ -144,12 +145,17 @@ class GNNFingers(BaseDefense):
     ) -> None:
         super().__init__(dataset, attack_node_fraction)
 
-        if dataset.api_type != "pyg":
-            raise ValueError("GNNFingers currently supports datasets loaded with the PyG API.")
-        if not isinstance(dataset.graph_data, Data):
-            raise TypeError("Expected dataset.graph_data to be an instance of torch_geometric.data.Data.")
+        if dataset.api_type == "dgl":
+            converted = dgl_to_tg(dataset.graph_data)
+        elif dataset.api_type == "pyg":
+            converted = dataset.graph_data
+        else:
+            raise ValueError(f"Unsupported dataset.api_type: {dataset.api_type}")
 
-        self.data = dataset.graph_data
+        if not isinstance(converted, Data):
+            raise TypeError("Expected graph data to be an instance of torch_geometric.data.Data after conversion.")
+
+        self.data = converted
         self.fingerprint_budget = int(fingerprint_budget)
         self.fingerprint_lr = fingerprint_lr
         self.fingerprint_steps = int(fingerprint_steps)
